@@ -103,12 +103,21 @@ Each step lists: **Goal** (what's true when done), **Deliverables** (files/code)
 - **Deliverables:**
   - `harness/providers/swebench.py` using `datasets.load_dataset("princeton-nlp/SWE-bench_Verified", split="test")`.
   - Mapping from SWE-bench instance fields (`instance_id`, `repo`, `base_commit`, `problem_statement`, `test_patch`, `FAIL_TO_PASS`, `PASS_TO_PASS`) → our `Task`.
-  - Cache to `~/.cache/coding-agent-compare/swebench/` so repeated loads are fast.
-  - `tasks/swebench_smoke.yaml` listing 3–5 hand-picked instance IDs (criteria: pytest-based, recent Python, no native deps, small repo). Initial candidates to validate: `sympy__sympy-20154`, `pylint-dev__pylint-7080`, `psf__requests-1142`. Final list confirmed at implementation time after spot-checking each.
-  - `swebench` + `datasets` added to `pyproject.toml`.
+  - Rely on HuggingFace's built-in `~/.cache/huggingface/` dataset cache; no project-local cache layer. *[Δ Step 3 — see Changes log below.]*
+  - `tasks/swebench_smoke.yaml` listing 3 hand-picked instance IDs locked in during Step 3 implementation: `sympy__sympy-20154`, `pylint-dev__pylint-7080`, `psf__requests-1142`. All three validated against the Verified split and span easy/medium difficulty across three repos. *[Δ Step 3 — see Changes log below.]*
+  - `datasets>=3.0` + `pyyaml>=6.0` added to `pyproject.toml`. *[Δ Step 3 — see Changes log below.]*
 - **Verify:** `uv run python -m harness tasks list --provider swebench --filter tasks/swebench_smoke.yaml` prints the smoke task IDs with title/repo/SHA.
 - **Effort:** M.
 - **Depends on:** 2.
+
+#### Changes introduced during implementation of Step 3
+
+Three deviations from the originally written plan were approved before coding (see `prompts/05-implement-step-3.md` for the conversation) and one decision was locked in at implementation time:
+
+1. **Dropped the `swebench` PyPI package as a dependency.** The package is heavy (pulls in Docker SDKs and the Docker-based evaluation harness). The plan's architectural decisions explicitly say *"we do not reuse their Docker eval runner,"* so the package brings cost without benefit. We load the dataset directly via HuggingFace `datasets` and map the fields ourselves. If we ever need something `swebench` offers (e.g., a parsing helper), reintroducing it then is cheap.
+2. **No project-local cache file.** HuggingFace's `datasets` library already caches at `~/.cache/huggingface/datasets/`, and re-mapping ~500 Verified rows to `Task` objects takes microseconds. Adding a second cache layer would only have value if mapping became a bottleneck — which it is not. Revisit only if measurable.
+3. **Added `pyyaml>=6.0`** because the filter file format remained YAML as the plan specified, and we needed a parser.
+4. **Smoke task IDs are now locked, not tentative.** The plan listed the three IDs as "initial candidates to validate." All three exist in the Verified split, are pure-Python, pytest-based, and have small-to-medium patches — they pass the criteria. Final list: those three.
 
 ### Step 4 — Worktree manager
 
