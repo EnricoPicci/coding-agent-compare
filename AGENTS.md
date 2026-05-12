@@ -40,15 +40,20 @@ Adding a new source means writing a new provider, **not** changing the orchestra
 ## Repository layout (target)
 
 ```
-harness/         Python package: providers, runner, graders, reporters
-scripts/         Bash entrypoints that invoke claude / copilot headlessly
-tasks/           Task manifests (yaml) + cached SWE-bench Verified slice
-runs/            Output: one dir per (run-id, tool, task, seed) — gitignored
-reports/         Generated comparison reports
-prompts/         Author-facing prompts driving this project's development
+harness/                    Python package: providers, runner, graders, reporters
+scripts/                    Bash entrypoints that invoke claude / copilot headlessly
+tasks/                      Task manifests (yaml) + cached SWE-bench Verified slice
+runs/                       Output: one dir per (run-id, tool, task, seed) — gitignored
+reports/                    Generated comparison reports
+prompts/                    Author-facing prompts driving this project's development
+docs-generated-by-claude/   Documents authored by Claude in response to prompts
 ```
 
 Don't create these eagerly — add a directory only when you have code that needs to live in it.
+
+## Generated documents — NN- prefix convention
+
+When a prompt file is named `prompts/NN-<slug>.md` (e.g., `prompts/02-plan-in-details.md`), any document generated as the direct result of that prompt **must** start with the same `NN-` prefix. So a plan produced from `02-plan-in-details.md` lives at `docs-generated-by-claude/02-<descriptive-name>.md`. The prefix links the artifact back to the prompt that produced it; without it, the lineage gets lost as the repo grows. This rule applies to every document type — plans, analyses, design notes, reports — placed under `docs-generated-by-claude/` or any sibling generated-doc folder.
 
 ## Invocation contract (must be identical across tools)
 

@@ -48,7 +48,23 @@ Switching sources is a config change, not a code change.
 
 ## Status
 
-Pragmatic-start phase. The repo currently contains only the project brief (`prompts/`) and these two memory files. The orchestrator, providers, and graders are being built incrementally — code lands as it's needed, not before.
+Pragmatic-start phase. The repo currently contains the project brief (`prompts/`), the agent-memory files (`CLAUDE.md`, `AGENTS.md`), a step-by-step implementation plan (`docs-generated-by-claude/`), and a cross-platform prerequisite checker (`scripts/check_prereqs.{sh,ps1}`). The orchestrator, providers, and graders are being built incrementally per the plan — code lands as it's needed, not before.
+
+## Supported platforms
+
+Linux, macOS, and Windows. On Windows, the harness runs under Git Bash (bundled with Git for Windows) or WSL2 — both provide the POSIX-compatible bash that runner scripts need. Native-Windows PowerShell users can run the entry-point prerequisite checker (`check_prereqs.ps1`) but will need Git Bash or WSL for everything past that.
+
+## Quickstart
+
+```bash
+# 1. Verify your machine has the tools the harness needs.
+./scripts/check_prereqs.sh        # Linux, macOS, Git Bash, WSL
+./scripts/check_prereqs.ps1       # native Windows PowerShell (or pwsh anywhere)
+```
+
+The checker validates `git`, `uv`, `claude`, and `copilot` are on `PATH` and that each binary actually behaves like the tool it claims to be (it specifically detects the VS Code Copilot Chat stub that can shadow the real Copilot CLI). It does **not** verify CLI authentication — log into `claude` and `copilot` interactively at least once before running the harness.
+
+Subsequent commands (running tasks, generating reports) will be added as the harness is implemented per `docs-generated-by-claude/02-implementation-plan-step-by-step.md`.
 
 ## Stack
 
@@ -66,12 +82,15 @@ Pragmatic-start phase. The repo currently contains only the project brief (`prom
 ## Layout (target — built incrementally)
 
 ```
-harness/    Python: providers, runner, graders, reporters
-scripts/    Bash entrypoints invoking claude / copilot headlessly
-tasks/      Task manifests + cached SWE-bench Verified slice
-runs/       Per-run outputs (gitignored)
-reports/    Generated comparison reports
-prompts/    Author-facing prompts driving this project's development
+harness/                    Python: providers, runner, graders, reporters
+scripts/                    Bash entrypoints invoking claude / copilot headlessly
+                            (plus PowerShell mirrors for user-facing entry points only)
+tasks/                      Task manifests + cached SWE-bench Verified slice
+runs/                       Per-run outputs (gitignored)
+reports/                    Generated comparison reports
+prompts/                    Author-facing prompts driving this project's development
+docs-generated-by-claude/   Documents Claude generates in response to prompts
+                            (plan, design notes, explanations — see CLAUDE.md for the NN- prefix convention)
 ```
 
 ## License
