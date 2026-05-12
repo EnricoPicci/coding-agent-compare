@@ -1,0 +1,67 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Pytest: all tests (harness/)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["harness/"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${command:python.interpreterPath}",
+      "justMyCode": false
+    },
+    {
+      "name": "Pytest: current file",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${command:python.interpreterPath}",
+      "justMyCode": false
+    },
+    {
+      "name": "Pytest: fast (skip integration)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["harness/", "-m", "not integration"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${command:python.interpreterPath}",
+      "justMyCode": false
+    },
+    {
+      "name": "Pytest: integration only",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["harness/", "-m", "integration", "-s"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${command:python.interpreterPath}",
+      "justMyCode": false
+    },
+    {
+      "name": "Harness CLI: tasks list (smoke)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "harness",
+      "args": [
+        "tasks",
+        "list",
+        "--provider",
+        "swebench",
+        "--filter",
+        "tasks/swebench_smoke.yaml"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${command:python.interpreterPath}",
+      "justMyCode": false
+    }
+  ]
+}
