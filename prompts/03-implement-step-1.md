@@ -1,4 +1,7 @@
-# 03 — Implementing Step 1
+# Prompt
+Implement Step 1
+
+# Claude response
 
 Generated from `prompts/03-implement-step-1.md`. Implements Step 1 of [`02-implementation-plan-step-by-step.md`](02-implementation-plan-step-by-step.md) — *Repo skeleton & `uv` project*.
 
