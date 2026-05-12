@@ -1,1 +1,12 @@
 node_modules/
+
+# Python / uv
+.venv/
+__pycache__/
+.uv-cache/
+*.egg-info/
+*.pyc
+
+# Run outputs — track the .gitkeep so the dir exists at clone time
+runs/*
+!runs/.gitkeep
