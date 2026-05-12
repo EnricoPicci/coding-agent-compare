@@ -1,0 +1,13 @@
+# SWE-bench Verified smoke task list.
+#
+# Three instances curated for the pragmatic-start phase.
+# Criteria: pure-Python, pytest-based, no native deps, mix of difficulties.
+# Validated against princeton-nlp/SWE-bench_Verified at implementation time.
+#
+# To widen the smoke set, append more instance IDs below. The harness loads
+# the full Verified split and filters by these IDs.
+
+task_ids:
+  - sympy__sympy-20154    # medium  | sympy 1.7  | partitions() reusing output dicts
+  - pylint-dev__pylint-7080  # medium  | pylint 2.15 | --recursive=y ignores ignore-paths
+  - psf__requests-1142    # easy    | requests 1.1 | Content-Length always sent

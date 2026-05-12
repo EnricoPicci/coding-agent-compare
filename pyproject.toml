@@ -4,7 +4,10 @@ version = "0.0.1"
 description = "Evaluation harness comparing Claude Code and GitHub Copilot CLI in agent mode."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "datasets>=3.0",
+    "pyyaml>=6.0",
+]
 
 [dependency-groups]
 dev = ["ruff>=0.5", "pytest>=8"]
@@ -15,3 +18,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["harness"]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: hits the real HuggingFace dataset (network + ~3s). Currently runs in the main suite; exclude with: pytest -m 'not integration'",
+]
