@@ -178,7 +178,7 @@ def test_manifest_has_expected_fields(tmp_path, task):
     result = run_once(task, "claude", 7, cfg)
     m = json.loads(result.manifest_path.read_text())
 
-    assert m["schema_version"] == "step6-stub"
+    assert m["schema_version"] == "1.0"
     assert m["run_id"] == "test-run"
     assert m["task_id"] == task.task_id
     assert m["tool"] == "claude"
@@ -252,3 +252,80 @@ def test_default_keep_preserves_worktree(tmp_path, task):
     wrapper = _make_stub_wrapper(tmp_path)
     result = run_once(task, "claude", 0, _cfg(tmp_path, wrapper))
     assert (result.run_dir / "repo").is_dir()
+
+
+# ----- Step 7 integration: parser → events.jsonl → manifest fields ----------
+
+
+def _make_claude_trace_wrapper(tmp_path: Path) -> Path:
+    """Stub wrapper that writes a stdout.log matching claude's stream-json shape,
+    so the runner exercises the parser path end-to-end."""
+    events = [
+        '{"type":"system","subtype":"init"}',
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"hi"}]}}',
+        '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","id":"t1"}]}}',
+        '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1"}]}}',
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}',
+    ]
+    wrapper = tmp_path / "run_claude_trace.sh"
+    lines = [
+        "#!/usr/bin/env bash",
+        "set -uo pipefail",
+        'WORKDIR=""; RUN_DIR=""; PROMPT_FILE=""; MODEL=""',
+        "while [[ $# -gt 0 ]]; do",
+        '  case "$1" in',
+        '    --workdir)     WORKDIR="$2"; shift 2 ;;',
+        '    --run-dir)     RUN_DIR="$2"; shift 2 ;;',
+        '    --prompt-file) PROMPT_FILE="$2"; shift 2 ;;',
+        '    --model)       MODEL="$2"; shift 2 ;;',
+        "    *) exit 2 ;;",
+        "  esac",
+        "done",
+        'mkdir -p "$RUN_DIR"',
+        "cat > \"$RUN_DIR/stdout.log\" <<'EOF'\n" + "\n".join(events) + "\nEOF",
+        'echo "" > "$RUN_DIR/stderr.log"',
+        'echo \'{"tool":"claude","binary":"/c","version":"x"}\' > "$RUN_DIR/tool_info.json"',
+        "exit 0",
+    ]
+    wrapper.write_text("\n".join(lines) + "\n")
+    wrapper.chmod(0o755)
+    return wrapper
+
+
+def test_run_once_emits_events_jsonl_and_derives_turn_count(tmp_path, task):
+    """run_once should run the parser, write events.jsonl, and populate
+    turn_count / event_count / events_path in the manifest."""
+    wrapper = _make_claude_trace_wrapper(tmp_path)
+    result = run_once(task, "claude", 0, _cfg(tmp_path, wrapper))
+
+    events_jsonl = result.run_dir / "events.jsonl"
+    assert events_jsonl.exists()
+    lines = events_jsonl.read_text().splitlines()
+    assert len(lines) == 4  # 2 messages + 1 tool_call + 1 tool_result
+
+    m = json.loads(result.manifest_path.read_text())
+    assert m["schema_version"] == "1.0"
+    assert m["turn_count"] == 2  # two assistant text messages
+    assert m["event_count"] == 4
+    assert m["events_path"] == "events.jsonl"
+    assert m["parse_error"] is None
+
+
+def test_run_once_records_parse_error_without_failing(tmp_path, task, monkeypatch):
+    """A parser exception should be captured in manifest.parse_error rather
+    than failing the whole run."""
+    import harness.parsers as parsers_mod
+
+    def boom(_path):
+        raise RuntimeError("synthetic parser failure")
+
+    monkeypatch.setitem(parsers_mod._PARSERS, "claude", boom)
+
+    wrapper = _make_stub_wrapper(tmp_path)
+    result = run_once(task, "claude", 0, _cfg(tmp_path, wrapper))
+
+    m = json.loads(result.manifest_path.read_text())
+    assert m["parse_error"] is not None
+    assert "synthetic parser failure" in m["parse_error"]
+    assert m["events_path"] is None
+    assert m["event_count"] == 0

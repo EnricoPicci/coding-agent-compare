@@ -194,6 +194,17 @@ POSIX-only assumption: `runner.py` uses `start_new_session=True` and `os.killpg`
 - **Effort:** M.
 - **Depends on:** 6.
 
+#### Changes introduced during implementation of Step 7
+
+The Pydantic decision was confirmed (see `prompts/09-implement-step-7.md`); no deviation there. Layout and policy decisions locked in at implementation time:
+
+1. **Manifest schema version is `"1.0"`**, replacing Step 6's `"step6-stub"`. Future schema-additive changes bump the minor (1.1, 1.2, …); a breaking change bumps the major. The reader (`harness.manifest.read_manifest`) validates strictly with `extra="forbid"` so a typo or rogue field surfaces at load time, not deep in a downstream grader.
+2. **"Preserve raw alongside" = stdout.log + `raw_type`, not duplicated payloads.** Each `NormalizedEvent` carries only the original event's type tag (e.g., `"assistant"` or `"tool.execution_start"`); the full raw payload remains in `stdout.log` and is locatable by `seq` (line index). This keeps `events.jsonl` small and unambiguous about what got mapped from what.
+3. **Parser tolerance is explicit and load-bearing.** Both parsers skip blank lines, JSON-decode errors, and unknown event types without raising. Truncated traces from SIGKILL'd processes are common and shouldn't fail the run. A parser bug that *does* throw is caught at the runner level and recorded as `manifest.parse_error`; the run is still considered successful from the harness's perspective because we still have `stdout.log` for a human to inspect.
+4. **`assistant.message_delta` is dropped.** Copilot streams chunks as 10–20× more `*_delta` events than finalized messages. Keeping deltas would inflate `turn_count` and bloat `events.jsonl` without informing any grader. Final-form only.
+5. **`turn_count` definition is locked in as "assistant text messages".** It is *not* the count of API round-trips or tool invocations — a single user prompt can drive many tool calls but yield only one assistant message, and we want `turn_count` to track "how many times did the model speak". Step 12's comparison report uses this metric directly.
+6. **Pydantic v2 (>= 2.0) added to `dependencies` in `pyproject.toml`.** This is a real new runtime dep (matches the plan). `ToolInfo` is the one model with `extra="allow"` so that future wrapper-side additions don't break manifest parsing; everything else is `extra="forbid"`.
+
 ### Step 8 — Mock grader (machinery-only)
 
 - **Goal:** A grader that runs after every run and produces `grade.json` with a single field `produced_nonempty_diff: bool`. Enough to validate end-to-end plumbing without committing to the real test runner yet.

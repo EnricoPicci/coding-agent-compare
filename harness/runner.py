@@ -25,6 +25,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from harness import __version__
+from harness.manifest import (
+    HostInfo,
+    Manifest,
+    RetryInfo,
+    ToolInfo,
+    WrapperInvocation,
+    write_manifest,
+)
+from harness.parsers import NormalizedEvent, get_parser
 from harness.task import Task
 from harness.worktree import WorktreeManager
 
@@ -112,7 +121,9 @@ def run_once(task: Task, tool: str, seed: int, config: RunConfig | None = None) 
     ended_at = _utc_now_iso()
 
     diff_path = _capture_diff(worktree, task.base_sha, run_dir)
-    manifest_path = _write_manifest(
+    events, parse_error = _parse_trace_safe(tool, run_dir / "stdout.log")
+    events_path = _write_events_jsonl(run_dir, events) if events else None
+    manifest_path = _write_run_manifest(
         run_dir=run_dir,
         run_id=run_id,
         task=task,
@@ -126,6 +137,9 @@ def run_once(task: Task, tool: str, seed: int, config: RunConfig | None = None) 
         exit_code=exit_code,
         timed_out=timed_out,
         wrapper_path=wrapper,
+        events=events,
+        events_path=events_path,
+        parse_error=parse_error,
     )
 
     if cfg.cleanup_worktree:
@@ -213,7 +227,27 @@ def _capture_diff(worktree: Path, base_sha: str, run_dir: Path) -> Path:
     return diff_path
 
 
-def _write_manifest(
+def _parse_trace_safe(tool: str, stdout_log: Path) -> tuple[list[NormalizedEvent], str | None]:
+    """Run the per-tool parser. Tolerant — a parser bug or trace drift records
+    the error in the manifest instead of failing the whole run."""
+    try:
+        parser = get_parser(tool)
+        events = parser(stdout_log)
+        return events, None
+    except Exception as exc:  # noqa: BLE001 — parser surface is uncontrolled
+        return [], f"{type(exc).__name__}: {exc}"
+
+
+def _write_events_jsonl(run_dir: Path, events: list[NormalizedEvent]) -> Path:
+    """Write one JSON object per line. Stable schema = NormalizedEvent."""
+    path = run_dir / "events.jsonl"
+    with open(path, "w") as fp:
+        for e in events:
+            fp.write(e.model_dump_json() + "\n")
+    return path
+
+
+def _write_run_manifest(
     *,
     run_dir: Path,
     run_id: str,
@@ -228,41 +262,46 @@ def _write_manifest(
     exit_code: int,
     timed_out: bool,
     wrapper_path: Path,
+    events: list[NormalizedEvent],
+    events_path: Path | None,
+    parse_error: str | None,
 ) -> Path:
-    """Write manifest.json. Stub schema; Step 7 will add parsed-trace fields."""
-    tool_info = _read_tool_info(run_dir)
-    manifest = {
-        "schema_version": "step6-stub",
-        "run_id": run_id,
-        "task_id": task.task_id,
-        "tool": tool,
-        "tool_info": tool_info,
-        "seed": seed,
-        "model": cfg.model,
-        "framing": cfg.framing,
-        "base_sha": task.base_sha,
-        "repo_url": task.repo_url,
-        "started_at": started_at,
-        "ended_at": ended_at,
-        "wall_clock_seconds": round(wall_clock_seconds, 3),
-        "budget_seconds": cfg.budget_seconds,
-        "exit_code": exit_code,
-        "timed_out": timed_out,
-        "retries": {"count": 0, "reasons": []},
-        "wrapper": {
-            "path": str(wrapper_path),
-            "args": cli_args,
-        },
-        "host": {
-            "system": platform.system(),
-            "release": platform.release(),
-            "python_version": sys.version.split()[0],
-            "harness_version": __version__,
-        },
-    }
-    path = run_dir / "manifest.json"
-    path.write_text(json.dumps(manifest, indent=2) + "\n")
-    return path
+    """Build a validated Manifest and write it to <run_dir>/manifest.json."""
+    tool_info_dict = _read_tool_info(run_dir)
+    tool_info = ToolInfo.model_validate(tool_info_dict) if tool_info_dict else None
+
+    turn_count = sum(1 for e in events if e.kind == "message" and e.role == "assistant")
+
+    manifest = Manifest(
+        run_id=run_id,
+        task_id=task.task_id,
+        tool=tool,
+        tool_info=tool_info,
+        seed=seed,
+        model=cfg.model,
+        framing=cfg.framing,
+        base_sha=task.base_sha,
+        repo_url=task.repo_url,
+        started_at=started_at,
+        ended_at=ended_at,
+        wall_clock_seconds=round(wall_clock_seconds, 3),
+        budget_seconds=cfg.budget_seconds,
+        exit_code=exit_code,
+        timed_out=timed_out,
+        retries=RetryInfo(),  # Step 11 will populate
+        turn_count=turn_count,
+        event_count=len(events),
+        events_path=events_path.name if events_path else None,
+        parse_error=parse_error,
+        wrapper=WrapperInvocation(path=str(wrapper_path), args=cli_args),
+        host=HostInfo(
+            system=platform.system(),
+            release=platform.release(),
+            python_version=sys.version.split()[0],
+            harness_version=__version__,
+        ),
+    )
+    return write_manifest(manifest, run_dir / "manifest.json")
 
 
 def _read_tool_info(run_dir: Path) -> dict | None:
