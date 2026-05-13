@@ -32,6 +32,41 @@ def build_parser() -> argparse.ArgumentParser:
         help="YAML file with a 'task_ids' list to filter the provider's output",
     )
 
+    run = sub.add_parser("run", help="run one (task, tool, seed) end-to-end")
+    run.add_argument("--task", dest="task_id", required=True, help="task_id to run")
+    run.add_argument("--tool", required=True, choices=["claude", "copilot"])
+    run.add_argument("--seed", type=int, default=0)
+    run.add_argument(
+        "--provider",
+        default="swebench",
+        choices=["swebench"],
+        help="task provider to load --task from",
+    )
+    run.add_argument(
+        "--budget-seconds",
+        type=int,
+        default=900,
+        help="wall-clock budget per attempt (default: 900s / 15min)",
+    )
+    run.add_argument("--model", help="optional model override (for Harness framing)")
+    run.add_argument(
+        "--framing",
+        default="product",
+        choices=["product", "harness"],
+        help="comparison framing recorded in the manifest",
+    )
+    run.add_argument("--run-id", help="reuse an existing run-id instead of generating one")
+    run.add_argument(
+        "--runs-root",
+        default="runs",
+        help="output root (default: runs/)",
+    )
+    run.add_argument(
+        "--cleanup",
+        action="store_true",
+        help="remove the worktree after the run (default: keep for inspection)",
+    )
+
     return parser
 
 
@@ -56,6 +91,38 @@ def _cmd_tasks_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_run(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from harness.providers.swebench import SWEBenchVerifiedProvider
+    from harness.runner import RunConfig, run_once
+
+    provider = SWEBenchVerifiedProvider()
+    tasks = provider.load([args.task_id])
+    if not tasks:
+        print(f"task not found: {args.task_id}", file=sys.stderr)
+        return 2
+    task = tasks[0]
+
+    cfg = RunConfig(
+        runs_root=Path(args.runs_root),
+        run_id=args.run_id,
+        budget_seconds=args.budget_seconds,
+        model=args.model,
+        framing=args.framing,
+        cleanup_worktree=args.cleanup,
+    )
+    result = run_once(task, args.tool, args.seed, cfg)
+
+    print(f"run-id:    {result.run_id}")
+    print(f"run-dir:   {result.run_dir}")
+    print(f"exit:      {result.exit_code}{' (timed out)' if result.timed_out else ''}")
+    print(f"wall:      {result.wall_clock_seconds:.1f}s")
+    print(f"diff:      {result.diff_path}")
+    print(f"manifest:  {result.manifest_path}")
+    return 0 if result.exit_code == 0 else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -68,6 +135,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_tasks_list(args)
         parser.parse_args([args.command, "--help"])
         return 2
+    if args.command == "run":
+        return _cmd_run(args)
 
     parser.print_help()
     return 1

@@ -168,6 +168,22 @@ Note on `--no-auto-update`: the locally-installed copilot was 1.0.45 before the 
 - **Effort:** M.
 - **Depends on:** 3, 4, 5.
 
+#### Changes introduced during implementation of Step 6
+
+Two deviations from the originally written plan were approved before coding (see `prompts/08-implement-step-6.md` for the conversation):
+
+1. **Retries deferred to Step 11.** The plan made retries a Step 6 deliverable, but on reflection retry orchestration belongs in the driver (Step 11) that owns multi-attempt state and decides whether to re-run a `(task, tool, seed)`. Keeping `run_once` single-attempt produces a clean contract: it does *exactly one* attempt and returns the outcome. The manifest still carries a `retries: {count, reasons}` field, currently always `{0, []}`, so Step 11 can populate it without a schema bump.
+2. **Diff capture uses `git add -A` + `git diff --cached <base_sha>`, not bare `git diff <base_sha>`.** Agents typically *create* files (the wrapper-verify run produced a brand-new `HELLO.txt`); a tracked-only diff would silently lose every created file. Stage-all-then-diff captures created, modified, and deleted files in one canonical patch. The mutation to the worktree's index is harmless because worktrees are per-task and disposable.
+
+Layout locked in at implementation time (compatible with the plan, more specific than it):
+
+- Run-id is an ISO timestamp like `2026-05-13T11-45-00` (sortable, human-readable) when not user-supplied via `--run-id`.
+- Per-run artifacts live at `runs/<run-id>/<tool>/<task_id>/seed-<N>/`, with the worktree as a subdirectory `repo/` (consumed from `WorktreeManager.prepare()`). All other artifacts — `prompt.txt`, `stdout.log`, `stderr.log`, `exit_code`, `wall_clock_seconds`, `tool_info.json`, `diff.patch`, `manifest.json` — sit next to `repo/`.
+- Worktrees are *kept* by default after a run, so a human can inspect what the agent did. Opt-in cleanup via `--cleanup`.
+- Manifest schema_version is `"step6-stub"`. Step 7 bumps this when it adds parser-derived fields (turn count, tool calls, etc.).
+
+POSIX-only assumption: `runner.py` uses `start_new_session=True` and `os.killpg`. The repo is already bash-required (`scripts/run_*.sh`), so this constraint is consistent — Windows users go through Git Bash / WSL where these primitives work.
+
 ### Step 7 — Run manifest + trace normalization
 
 - **Goal:** Every run dir contains a `manifest.json` capturing everything needed to reason about the run later; a `events.jsonl` provides a thin normalized view across tools.
