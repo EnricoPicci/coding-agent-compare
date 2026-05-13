@@ -142,6 +142,20 @@ Three deviations from the originally written plan were approved before coding (s
 - **Depends on:** 4.
 - **Tool resolution note (PATH ordering).** `copilot` (and possibly `claude`) is commonly installed as a *project-local* npm dependency at `./node_modules/.bin/<tool>`. On developer machines, an unrelated `copilot` binary may live earlier in `PATH` — notably VS Code's GitHub Copilot Chat extension ships a `copilot` stub at `~/Library/Application Support/Code/.../copilotCli/copilot` that prints an install prompt and exits 0. A naive `exec copilot` from these wrappers will pick up the stub and silently corrupt every run. Each wrapper must therefore resolve the binary in npm order: project-local `./node_modules/.bin/<tool>` first, then `PATH`. Implement either by prepending `"$REPO_ROOT/node_modules/.bin"` to `PATH` at the top of each wrapper, or by resolving the absolute path once and invoking it directly. The prerequisite checker (`scripts/check_prereqs.{sh,ps1}`) already uses this resolution order; mirror that logic here. The resolved absolute path and the resolved tool version must both be recorded in the run manifest so a future reader can tell which binary actually ran.
 
+#### Changes introduced during implementation of Step 5
+
+Two deviations from the originally written deliverable were approved before coding (see `prompts/07-implement-step-5.md` for the conversation):
+
+1. **Dropped the separate `trace.raw` file.** Both tools, when invoked with the structured-output flags the plan already specifies (`--output-format stream-json` for `claude`, `--output-format json` for `copilot`), stream the structured trace to stdout. Writing `stdout.log` *and* a byte-identical `trace.raw` would duplicate every run's payload with no upside; downstream parsers (Step 7) will read `stdout.log` directly. If a future tool moves its trace off stdout (separate log file, OTel exporter), reintroducing `trace.raw` is a one-line wrapper change at that time.
+2. **Added `tool_info.json` to the per-run output dir.** The plan's note already requires the resolved binary path and tool version to land in the run manifest. Having the bash wrapper write a single-line `tool_info.json` (`{"tool", "binary", "version"}`) makes the manifest writer's job mechanical (merge a known file) and means manual / ad-hoc invocations of the wrapper produce the same metadata trail as supervised runs. Three lines of bash + a one-liner `python3 -c 'import json; ...'` for safe quoting.
+
+Two flag-surface details locked in at implementation time against the live CLIs (claude 2.1.140, copilot 1.0.46):
+
+- **Claude headless = `-p "<prompt>" --output-format stream-json --verbose --dangerously-skip-permissions`.** `--verbose` is required by claude when combining `-p` (print) with `--output-format=stream-json`; without it the tool errors out. `--dangerously-skip-permissions` is claude's equivalent of copilot's `--allow-all-tools` — required for any headless, non-interactive run.
+- **Copilot headless = `-p "<prompt>" --allow-all-tools --output-format json --no-auto-update --no-color -C "<workdir>"`.** `--no-auto-update` prevents the CLI from silently downloading a newer version mid-run (which would invalidate the version recorded in `tool_info.json`); `--no-color` keeps stdout clean ANSI-free for parsers; `-C <dir>` is copilot's `cd`-equivalent and removes the need for a subshell in the wrapper.
+
+Note on `--no-auto-update`: the locally-installed copilot was 1.0.45 before the first verify attempt and 1.0.46 after the user re-authenticated via `copilot /login`. The version bump happened during the interactive `/login` flow, not during a `-p` run — `--no-auto-update` only suppresses background updates during invocation, not user-initiated updates from interactive sessions. This is expected; the manifest captures whichever version was resolved at run time.
+
 ### Step 6 — Single-run executor
 
 - **Goal:** One Python function runs one `(task, tool, seed)` end-to-end: prepare worktree, invoke wrapper, enforce wall-clock + retries, capture diff + trace + manifest.

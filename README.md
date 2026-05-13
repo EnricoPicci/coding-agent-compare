@@ -60,9 +60,20 @@ Linux, macOS, and Windows. On Windows, the harness runs under Git Bash (bundled 
 # 1. Verify your machine has the tools the harness needs.
 ./scripts/check_prereqs.sh        # Linux, macOS, Git Bash, WSL
 ./scripts/check_prereqs.ps1       # native Windows PowerShell (or pwsh anywhere)
+
+# 2. Verify the headless wrappers work end-to-end (real API calls; cents per run).
+./scripts/verify_wrappers.sh                    # both tools
+./scripts/verify_wrappers.sh --tool claude      # one at a time if you prefer
 ```
 
-The checker validates `git`, `uv`, `claude`, and `copilot` are on `PATH` and that each binary actually behaves like the tool it claims to be (it specifically detects the VS Code Copilot Chat stub that can shadow the real Copilot CLI). It does **not** verify CLI authentication — log into `claude` and `copilot` interactively at least once before running the harness.
+The prereq checker validates `git`, `uv`, `claude`, and `copilot` are on `PATH` and that each binary actually behaves like the tool it claims to be (it specifically detects the VS Code Copilot Chat stub that can shadow the real Copilot CLI). It does **not** verify CLI authentication — log into `claude` and `copilot` interactively at least once before running the harness.
+
+`verify_wrappers.sh` then exercises `scripts/run_claude.sh` and `scripts/run_copilot.sh` against a throwaway git workdir with a trivial prompt ("create a file named HELLO.txt"). It exists for two reasons:
+
+1. **Show, don't tell.** After it runs, `runs/wrapper-verify/` (gitignored) contains every artifact a real run produces — `stdout.log`, `stderr.log`, `exit_code`, `wall_clock_seconds`, `tool_info.json`, plus the diff the agent applied to the workdir. Browse it to understand the on-disk contract the rest of the harness consumes.
+2. **Auth + flag-surface canary.** Both CLIs receive frequent updates, and `--help` flag inventories drift. Re-run this whenever a tool updates to catch breakage before it shows up in a real task run.
+
+Costs real money (Claude) and seat usage (Copilot) — a few cents end-to-end. Skip it if you'd rather find out about a broken wrapper inside a real run.
 
 Subsequent commands (running tasks, generating reports) will be added as the harness is implemented per `docs-generated-by-claude/02-implementation-plan-step-by-step.md`.
 
