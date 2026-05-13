@@ -20,11 +20,13 @@ import signal
 import subprocess
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
 from harness import __version__
+from harness.graders import get_grader
+from harness.graders.base import Grade
 from harness.manifest import (
     HostInfo,
     Manifest,
@@ -57,6 +59,7 @@ class RunConfig:
     framing: str = "product"  # "product" | "harness"
     prompt_suffix: str = DEFAULT_PROMPT_SUFFIX
     cleanup_worktree: bool = False
+    graders: list[str] = field(default_factory=lambda: ["mock"])
     # Optional override for the wrapper script path (tests use this).
     wrapper_override: Path | None = None
     # Optional override for the WorktreeManager (tests use this).
@@ -77,6 +80,7 @@ class RunResult:
     ended_at: str
     diff_path: Path
     manifest_path: Path
+    grade_path: Path | None = None
 
 
 def run_once(task: Task, tool: str, seed: int, config: RunConfig | None = None) -> RunResult:
@@ -142,6 +146,8 @@ def run_once(task: Task, tool: str, seed: int, config: RunConfig | None = None) 
         parse_error=parse_error,
     )
 
+    grade_path = _run_graders(run_dir, task, cfg.graders)
+
     if cfg.cleanup_worktree:
         mgr.cleanup(worktree)
 
@@ -158,6 +164,7 @@ def run_once(task: Task, tool: str, seed: int, config: RunConfig | None = None) 
         ended_at=ended_at,
         diff_path=diff_path,
         manifest_path=manifest_path,
+        grade_path=grade_path,
     )
 
 
@@ -225,6 +232,37 @@ def _capture_diff(worktree: Path, base_sha: str, run_dir: Path) -> Path:
             check=False,
         )
     return diff_path
+
+
+def _run_graders(run_dir: Path, task: Task, grader_names: list[str]) -> Path | None:
+    """Run each named grader and merge results into a single grade.json.
+
+    Graders that raise are recorded in the grade's `grader_notes` rather than
+    failing the run — a non-empty diff in the run dir is still useful data
+    even if a particular grader breaks. Returns the path to grade.json (or
+    None if no graders ran).
+    """
+    if not grader_names:
+        return None
+
+    merged: dict = {"graders": []}
+    failures: list[str] = []
+    for name in grader_names:
+        try:
+            fields = get_grader(name)(run_dir, task)
+            merged.update(fields)
+            merged["graders"].append(name)
+        except Exception as exc:  # noqa: BLE001 — grader surface is uncontrolled
+            failures.append(f"{name}: {type(exc).__name__}: {exc}")
+
+    if failures:
+        prior = merged.get("grader_notes")
+        merged["grader_notes"] = "; ".join([*([prior] if prior else []), *failures])
+
+    grade = Grade.model_validate(merged)
+    path = run_dir / "grade.json"
+    path.write_text(grade.model_dump_json(indent=2, by_alias=True) + "\n")
+    return path
 
 
 def _parse_trace_safe(tool: str, stdout_log: Path) -> tuple[list[NormalizedEvent], str | None]:

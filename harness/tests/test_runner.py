@@ -329,3 +329,51 @@ def test_run_once_records_parse_error_without_failing(tmp_path, task, monkeypatc
     assert "synthetic parser failure" in m["parse_error"]
     assert m["events_path"] is None
     assert m["event_count"] == 0
+
+
+# ----- Step 8 integration: grader → grade.json ------------------------------
+
+
+def test_run_once_writes_grade_json_with_mock_grader(tmp_path, task):
+    """Mock grader runs by default; grade.json should reflect the diff state."""
+    wrapper = _make_stub_wrapper(tmp_path, create_file=("NEW.txt", "x\n"))
+    result = run_once(task, "claude", 0, _cfg(tmp_path, wrapper))
+
+    assert result.grade_path is not None
+    assert result.grade_path.exists()
+    g = json.loads(result.grade_path.read_text())
+    assert g["schema_version"] == "1.0"
+    assert g["graders"] == ["mock"]
+    assert g["produced_nonempty_diff"] is True
+
+
+def test_run_once_grade_reports_false_when_agent_does_nothing(tmp_path, task):
+    wrapper = _make_stub_wrapper(tmp_path, create_file=None)
+    result = run_once(task, "claude", 0, _cfg(tmp_path, wrapper))
+    g = json.loads(result.grade_path.read_text())
+    assert g["produced_nonempty_diff"] is False
+
+
+def test_run_once_skips_grading_when_no_graders_configured(tmp_path, task):
+    wrapper = _make_stub_wrapper(tmp_path)
+    cfg = _cfg(tmp_path, wrapper, graders=[])
+    result = run_once(task, "claude", 0, cfg)
+    assert result.grade_path is None
+    assert not (result.run_dir / "grade.json").exists()
+
+
+def test_run_once_records_grader_failure_without_failing(tmp_path, task, monkeypatch):
+    """Like the parser case: a buggy grader is data we still want to keep."""
+    import harness.graders as graders_mod
+
+    def boom(_run_dir, _task):
+        raise RuntimeError("synthetic grader failure")
+
+    monkeypatch.setitem(graders_mod._GRADERS, "mock", boom)
+
+    wrapper = _make_stub_wrapper(tmp_path)
+    result = run_once(task, "claude", 0, _cfg(tmp_path, wrapper))
+
+    g = json.loads(result.grade_path.read_text())
+    assert g["graders"] == []  # boom didn't append itself
+    assert "synthetic grader failure" in (g["grader_notes"] or "")

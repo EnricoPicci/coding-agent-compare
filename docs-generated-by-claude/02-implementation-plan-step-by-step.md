@@ -215,6 +215,16 @@ The Pydantic decision was confirmed (see `prompts/09-implement-step-7.md`); no d
 - **Effort:** S.
 - **Depends on:** 6.
 
+#### Changes introduced during implementation of Step 8
+
+Step 8 mostly matched the plan; the only meaningful decisions are about how Step 9 and Step 10 will *extend* the same document:
+
+1. **`grade.json` is one accreting document, not per-grader files.** Each grader returns a partial dict; the runner merges all into a single `Grade` Pydantic model and writes one file. This matches the plan's later phrase "secondary graders append to grade.json" — designing it that way from Step 8 avoids a schema migration when Step 10 lands.
+2. **`Grade` schema is named (1.0) and strict (`extra="forbid"`).** Future graders add real typed fields here, not arbitrary string keys. The placeholder fields for Step 9 (`pass_`, `tests_passed`, `tests_failed`, `unresolved`, `grader_notes`) and Step 10 (`files_touched_precision`, `files_touched_recall`, `diff_size_lines`, `human_diff_size_lines`) are already declared as `Optional` so manifests written today validate against the schema and so do manifests written after Step 9–10.
+3. **Grader plug-in registry mirrors the parser one.** `harness/graders/__init__.py` exposes `register(name, fn)` and `get_grader(name)`; `mock.py` registers itself on import. `RunConfig.graders: list[str]` (default `["mock"]`) names which graders run; pass `graders=[]` to skip grading entirely (useful for harness-development runs where you only care about the agent's diff).
+4. **Grader failures are non-fatal.** Like parser failures, a buggy grader records its error in `grade_notes` and the run is still considered complete. A run that produced a real `diff.patch` is data worth keeping even if downstream analysis breaks; we don't want a single bad grader to invalidate an expensive run.
+5. **`pass` is exposed as a Pydantic field aliased to `pass_`** in Python because `pass` is a reserved keyword. The JSON key remains the spelling humans expect (`"pass"`); only the attribute access is renamed (`grade.pass_`).
+
 ### Step 9 — Primary grader: host-venv test runner
 
 - **Goal:** For tasks whose test commands run on the host, the grader replays the test patch, runs the test command, parses results against `FAIL_TO_PASS` / `PASS_TO_PASS`, and emits pass/fail.
