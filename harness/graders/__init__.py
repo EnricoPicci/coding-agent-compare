@@ -28,6 +28,8 @@ def get_grader(name: str) -> GraderFn:
         # Lazy-import the module that registers `name` on demand.
         if name == "mock":
             from harness.graders import mock  # noqa: F401
+        elif name == "swebench_host":
+            from harness.graders import swebench_host  # noqa: F401
         else:
             raise KeyError(f"no grader registered for {name!r}")
     return _GRADERS[name]

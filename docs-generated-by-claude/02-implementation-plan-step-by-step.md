@@ -225,6 +225,18 @@ Step 8 mostly matched the plan; the only meaningful decisions are about how Step
 4. **Grader failures are non-fatal.** Like parser failures, a buggy grader records its error in `grade_notes` and the run is still considered complete. A run that produced a real `diff.patch` is data worth keeping even if downstream analysis breaks; we don't want a single bad grader to invalidate an expensive run.
 5. **`pass` is exposed as a Pydantic field aliased to `pass_`** in Python because `pass` is a reserved keyword. The JSON key remains the spelling humans expect (`"pass"`); only the attribute access is renamed (`grade.pass_`).
 
+#### Smoke task list re-curated before Step 9
+
+The original smoke list locked in during Step 3 (`sympy__sympy-20154`, `pylint-dev__pylint-7080`, `psf__requests-1142`) was chosen for "pure-Python, pytest-based, mix of difficulties" without yet thinking about how grading would actually work. When Step 9's risks came into focus — host-venv installs failing on 2013-era packaging, native deps in sympy/pylint, EOL Python versions — the set was re-curated *before* starting Step 9 implementation. New set (locked in `tasks/swebench_smoke.yaml`):
+
+| task_id | repo | base_commit date | F2P | P2P | total |
+|---|---|---|---|---|---|
+| `pallets__flask-5014` | pallets/flask | 2023-03 | 1 | 59 | 60 |
+| `pytest-dev__pytest-10051` | pytest-dev/pytest | 2022-06 | 1 | 15 | 16 |
+| `psf__requests-5414` | psf/requests | 2020-04 | 1 | 130 | 131 |
+
+All three are pure-Python repos with pyproject.toml-era packaging and post-2020 base commits, which structurally lowers the dep-isolation risk Step 9 was flagged for. Tests still run via pytest with FAIL_TO_PASS + PASS_TO_PASS as the targeted test set. The 'host_runnable' tag in `tasks/swebench_smoke.yaml` is reserved for tasks the grader cannot run on the host; the new set's expected default is `true` for all three.
+
 ### Step 9 — Primary grader: host-venv test runner
 
 - **Goal:** For tasks whose test commands run on the host, the grader replays the test patch, runs the test command, parses results against `FAIL_TO_PASS` / `PASS_TO_PASS`, and emits pass/fail.
@@ -239,6 +251,24 @@ Step 8 mostly matched the plan; the only meaningful decisions are about how Step
 - **Verify:** Running the grader against the gold patch for a smoke task yields `pass: true`. Running it against an empty diff yields `pass: false`. Running it against an agent diff produces a reasoned result.
 - **Effort:** L. This is the riskiest step — most likely to surface dependency-isolation pain.
 - **Depends on:** 8.
+
+#### Changes introduced during implementation of Step 9
+
+The verify clause is satisfied for all 3 (re-curated) smoke tasks: each gold patch grades `pass=true`, empty diff grades `pass=false`. To get there, several real-world wrinkles surfaced that justify documented deviations from the plan as originally written:
+
+1. **Per-task install YAML at `tasks/swebench_smoke_grade.yaml`.** Carries `python_version`, `host_runnable`, `install_cmds`, plus two unanticipated per-task knobs surfaced during implementation: `pytest_extra_args` and `skip_tests`. Adding a smoke task is a one-block YAML entry; the grader returns `pass=null` with a clear note if a task lacks a spec.
+2. **`pytest_extra_args`** (new field). Per-task pytest CLI extensions. Used to inject `--override-ini=addopts=` for `psf__requests-5414` whose `pytest.ini` sets `addopts = --doctest-modules` — that flag turns every Python file into a DoctestModule and hijacks targeted F2P/P2P selection. Other tasks (flask, pytest) leave this empty and keep their projects' addopts (the pytest task in particular legitimately needs `-p pytester`).
+3. **`skip_tests`** (new field). Per-task list of test names known to be environment-dependent on the host. For `psf__requests-5414`, four `TestTimeout` tests connect to a TARPIT host and expect a slow timeout — they wrongly fail on networks that refuse the connection fast. Listed tests are removed from the F2P/P2P target list before pytest runs and reported under `unresolved` with a clear `grader_notes` explanation.
+4. **`werkzeug<3` pin in flask's install command.** Werkzeug 3.0 (Sept 2023) removed `werkzeug.__version__`, which flask at base_sha 2023-03 reads in `flask.testing.__init__`. Plain `pip install -e .` resolves to latest werkzeug and breaks every test. The install command pins `werkzeug<3` to match the era.
+5. **Provider-level fix: parametrized-name stitching for SWE-bench Verified data.** SWE-bench's FAIL_TO_PASS / PASS_TO_PASS lists occasionally serialize parametrized test names split on whitespace — e.g. `test_X[a b]` stored as two separate strings `"test_X[a"` and `"b]"`. `harness/providers/swebench.py::_stitch_parametrized` re-joins fragments by counting unbalanced brackets, with a guard that refuses to merge across two items that both contain `::` (those are distinct tests, not a fragment + continuation). Two entries in `psf__requests-5414`'s P2P are dataset-corrupted past recovery (closing `]` missing entirely) — the grader detects unbalanced names via `_looks_runnable` and routes them to `unresolved` instead of failing the run.
+6. **Grader pre-filters unrunnable target names.** If even *one* target name doesn't exist in the collected test set, pytest aborts the entire batch with `rc=4` and reports "no tests ran." `_looks_runnable` (requires `::` plus balanced brackets) prunes those before pytest sees them; they go to `unresolved`. Without this filter, two dataset-corrupted names in `psf__requests-5414` would have made the whole run unresolved.
+7. **`fail-soft` policy is load-bearing.** Every grader step (apply patch, create venv, install, run pytest, parse output) returns `pass=null` with a `grader_notes` string on failure rather than raising. The plan's notion that "the run is still complete even if grading fails" is what lets the comparison report keep useful runs even when the grader can't reach a verdict on some of them.
+8. **Smoke task list re-curated up front** to lower install-side risk. The decision to swap the original `sympy / pylint / requests-1142` set for `flask-5014 / pytest-10051 / requests-5414` is documented separately under the "Smoke task list re-curated before Step 9" heading above this step.
+
+Verified end-to-end on this machine:
+- `pallets__flask-5014`: 60/60 pass on gold patch
+- `pytest-dev__pytest-10051`: 16/16 pass on gold patch; F2P fails correctly on empty diff
+- `psf__requests-5414`: 125/125 grade-able tests pass on gold patch; 6 unresolved (2 dataset-corrupted, 4 environment-dependent — all noted in `grader_notes`)
 
 ### Step 10 — Secondary graders
 

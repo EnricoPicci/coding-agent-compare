@@ -1,13 +1,20 @@
 # SWE-bench Verified smoke task list.
 #
 # Three instances curated for the pragmatic-start phase.
-# Criteria: pure-Python, pytest-based, no native deps, mix of difficulties.
-# Validated against princeton-nlp/SWE-bench_Verified at implementation time.
+# Criteria: pure-Python repos with modern packaging (pyproject.toml era),
+# post-2020 base_commit so the install path works on Python 3.11+ without
+# fighting EOL-Python deps, small fix patches (< 1.5 KB), small-to-moderate
+# F2P+P2P test counts so grading runs are quick. Three different repos for
+# diversity (one each: flask, pytest, requests).
+#
+# This set was re-curated when Step 9 (host-venv grader) showed the original
+# picks (sympy / pylint / 2013-era requests) would hit native-dep / build
+# issues. The grader's dep-isolation risk is materially reduced with this set.
 #
 # To widen the smoke set, append more instance IDs below. The harness loads
 # the full Verified split and filters by these IDs.
 
 task_ids:
-  - sympy__sympy-20154    # medium  | sympy 1.7  | partitions() reusing output dicts
-  - pylint-dev__pylint-7080  # medium  | pylint 2.15 | --recursive=y ignores ignore-paths
-  - psf__requests-1142    # easy    | requests 1.1 | Content-Length always sent
+  - pallets__flask-5014      # 2023-03 | flask    | 60 tests   | "Require non-empty name for Blueprints"
+  - pytest-dev__pytest-10051 # 2022-06 | pytest   | 16 tests   | "caplog.get_records and caplog.clear conflict"
+  - psf__requests-5414       # 2020-04 | requests | 131 tests  | "Getting http://.example.com raises UnicodeError"

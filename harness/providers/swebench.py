@@ -35,10 +35,45 @@ def _parse_test_list(raw: Any) -> list[str]:
     if raw is None or raw == "":
         return []
     if isinstance(raw, list):
-        return [str(x) for x in raw]
-    if isinstance(raw, str):
-        return [str(x) for x in json.loads(raw)]
-    raise TypeError(f"unexpected test-list type: {type(raw).__name__}")
+        items = [str(x) for x in raw]
+    elif isinstance(raw, str):
+        items = [str(x) for x in json.loads(raw)]
+    else:
+        raise TypeError(f"unexpected test-list type: {type(raw).__name__}")
+    return _stitch_parametrized(items)
+
+
+def _stitch_parametrized(items: list[str]) -> list[str]:
+    """Re-join parametrized test names that SWE-bench Verified's serializer
+    split on whitespace. A test name like
+    `tests/x.py::Cls::test[a b]` is sometimes stored as two separate strings
+    `"tests/x.py::Cls::test[a"` and `"b]"`; pytest doesn't know about that
+    split and rejects both as "test not found".
+
+    Heuristic: a fragment with an open `[` but no matching `]` is a partial
+    name. The continuation is the *next* item provided it doesn't look like
+    a new test name (i.e. it contains no `::`). If the next item *does*
+    contain `::`, the unbalanced buffer is emitted as-is (we'd rather
+    surface it unresolved than silently glue together two distinct tests).
+    """
+    out: list[str] = []
+    buf: str | None = None
+    for item in items:
+        if buf is None:
+            buf = item
+        elif "::" in item:
+            # `item` looks like a new test name, not a continuation. Emit the
+            # broken buffer verbatim and start fresh.
+            out.append(buf)
+            buf = item
+        else:
+            buf = f"{buf} {item}"
+        if buf.count("[") <= buf.count("]"):
+            out.append(buf)
+            buf = None
+    if buf is not None:
+        out.append(buf)
+    return out
 
 
 def row_to_task(row: dict[str, Any]) -> Task:

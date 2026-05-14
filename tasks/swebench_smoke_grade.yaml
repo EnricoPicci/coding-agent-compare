@@ -1,0 +1,53 @@
+# Per-task install + test specs for Step 9's host-venv grader.
+#
+# Each entry tells the grader how to prepare a venv and install the repo for
+# a given smoke task. `host_runnable: false` means the grader will refuse with
+# a clear "ungradeable on host" status (no venv created, pass=null).
+#
+# `python_version` is passed to `uv venv --python`. uv will fetch the
+# interpreter if it's not already installed.
+#
+# `install_cmds` runs in order inside the venv with the grade worktree as cwd.
+# Each entry is a shell command; failure of any command aborts install with
+# pass=null + grader_notes containing the failing command's output.
+#
+# Adding a new smoke task requires adding an entry here, OR the grader returns
+# "ungradeable: no spec" and skips.
+
+tasks:
+  pallets__flask-5014:
+    python_version: "3.11"
+    host_runnable: true
+    install_cmds:
+      # werkzeug 3.0 (released Sept 2023) removed `werkzeug.__version__`, which
+      # flask at this base_sha (Mar 2023) reads in flask.testing.__init__.
+      # Pin werkzeug<3 so the test fixtures work.
+      - "uv pip install -e . pytest 'werkzeug<3'"
+
+  pytest-dev__pytest-10051:
+    python_version: "3.11"
+    host_runnable: true
+    install_cmds:
+      # pytest's own setup installs pytest, so no separate pytest install needed.
+      - "uv pip install -e ."
+
+  psf__requests-5414:
+    python_version: "3.11"
+    host_runnable: true
+    install_cmds:
+      - "uv pip install pytest"
+      - "uv pip install -e ."
+    pytest_extra_args:
+      # requests's pytest.ini sets `addopts = --doctest-modules`, which causes
+      # pytest to collect every module as doctests and refuse our targeted
+      # FAIL_TO_PASS/PASS_TO_PASS selection. Strip its addopts for this task.
+      - "--override-ini=addopts="
+    skip_tests:
+      # These tests connect to a "TARPIT" host expecting a slow timeout. On a
+      # network that immediately refuses the connection (or has no route),
+      # the connect() returns fast and the test wrongly fails. Genuinely
+      # environment-dependent — not graded on the host.
+      - "tests/test_requests.py::TestTimeout::test_connect_timeout[timeout0]"
+      - "tests/test_requests.py::TestTimeout::test_connect_timeout[timeout1]"
+      - "tests/test_requests.py::TestTimeout::test_total_timeout_connect[timeout0]"
+      - "tests/test_requests.py::TestTimeout::test_total_timeout_connect[timeout1]"

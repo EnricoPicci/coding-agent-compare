@@ -272,20 +272,31 @@ def test_get_parser_unknown_tool_raises():
 # ----- end-to-end against real step6-verify traces -------------------------
 
 
-@pytest.mark.parametrize("tool", ["claude", "copilot"])
-def test_real_step6_trace_parses_without_error(tool: str):
-    """If step6-verify artifacts are present on disk, the parsers should
-    handle them without raising. Skip otherwise so this isn't a CI dependency."""
-    log = (
-        Path(__file__).parents[2]
-        / "runs"
-        / "step6-verify"
-        / tool
-        / "psf__requests-1142"
-        / "seed-0"
-        / "stdout.log"
-    )
-    if not log.exists():
-        pytest.skip(f"no live trace at {log}")
+@pytest.mark.parametrize(
+    "tool,fixture",
+    [
+        ("claude", "claude_stream_json_sample.jsonl"),
+        ("copilot", "copilot_jsonl_sample.jsonl"),
+    ],
+)
+def test_real_trace_fixture_parses_without_error(tool: str, fixture: str):
+    """Parse a checked-in real-world trace captured from a live agent run.
+    Unconditional — no skip path; the fixtures live in the repo so this test
+    runs on every machine and in CI. Refresh the fixtures (see
+    `harness/tests/fixtures/README.md`) only when a tool's output format
+    intentionally changes."""
+    log = Path(__file__).parent / "fixtures" / fixture
+    assert log.exists(), f"missing fixture {log} — see fixtures/README.md"
     events = get_parser(tool)(log)
     assert all(isinstance(e, NormalizedEvent) for e in events)
+    # Real agent runs always issue at least one tool call (claude reads the
+    # codebase; copilot reads + reasons before editing). If a parser change
+    # silently drops these, this assertion fails loud.
+    assert any(e.kind == "tool_call" for e in events), f"no tool_call events parsed from {fixture}"
+    assert any(e.kind == "tool_result" for e in events), (
+        f"no tool_result events parsed from {fixture}"
+    )
+    # `seq` must be monotonically non-decreasing — events come from a single
+    # ordered trace and downstream consumers rely on insertion order.
+    seqs = [e.seq for e in events]
+    assert seqs == sorted(seqs), "events out of order"

@@ -2,6 +2,8 @@
 
 The **grader** is the component that turns "the agent finished and produced a diff" into "did the agent actually succeed?" It is the scoring function of the experiment.
 
+> **See also:** [`11-host-grader-pipeline.md`](11-host-grader-pipeline.md) — implementation deep-dive into the Step 9 host-venv grader: the directory layout it produces on disk, the step-by-step pipeline inside `swebench_host.grade()`, and how the workspace (`grade-work/`) and toolchain (`grade-venv/`) are bridged via `pip install -e .`. Read that document when you need to understand *how* a real run grades, not just *what* a grader is for.
+
 ## What it does
 
 After every run, the runner has captured an artifact: `diff.patch` — the agent's proposed code change. That artifact is just text. By itself it tells you nothing about whether the agent solved the task. The grader answers that question and writes the answer to `grade.json`.
@@ -36,7 +38,7 @@ That's the **primary** metric — the headline pass/fail number.
 | Step | Grader | What it answers |
 |---|---|---|
 | 8 | **Mock grader** | "Did the agent produce a non-empty diff?" Validates plumbing; no real judgment. |
-| 9 | **Host-venv grader** (primary) | "Do FAIL_TO_PASS / PASS_TO_PASS tests behave correctly?" The real signal. |
+| 9 | **[Host-venv grader](11-host-grader-pipeline.md)** (primary) | "Do FAIL_TO_PASS / PASS_TO_PASS tests behave correctly?" The real signal. |
 | 10 | **Scope grader** (secondary) | "Did the agent touch roughly the same files the human did?" (precision/recall) |
 | 10 | **Size grader** (secondary) | "How does the agent's diff size compare to the human's?" (over-editing detector) |
 
@@ -45,6 +47,8 @@ The mock grader exists so steps 1–8 of the plan can be wired end-to-end *befor
 ## Why step 9 is risky
 
 Step 9 needs to actually execute the test suite at the right Python version with the right deps for a historical state of an external repo. That's the dependency-isolation problem — exactly why SWE-bench's official harness uses Docker. Our plan tries to dodge Docker by carefully picking smoke tasks that run cleanly in a `uv` venv on the host. If that breaks on a task we care about, the escape hatch is using SWE-bench's prebuilt Docker images for grading only (option B in the plan's open-questions section) — Docker scoped to the grader, not to the agent's runtime.
+
+How Step 9 actually solves the dep-isolation problem on the host — workspace/toolchain separation, the editable-install bridge, the per-task install spec — is documented in detail in [`11-host-grader-pipeline.md`](11-host-grader-pipeline.md).
 
 ## One-line summary
 

@@ -164,8 +164,16 @@ def test_prepare_against_real_smoke_task(tmp_path: Path):
 
     smoke_yaml = Path(__file__).parents[2] / "tasks" / "swebench_smoke.yaml"
     ids = load_task_ids_from_yaml(smoke_yaml)
-    # psf/requests is the smallest repo in the smoke set — keeps the clone cheap.
-    task = next(t for t in SWEBenchVerifiedProvider().load(ids) if "requests" in t.repo_url)
+    # Pin to a specific task on purpose: if the smoke set rotates, this test
+    # should fail loudly so the smoke-set change and the test-coverage change
+    # happen in the same commit. psf/requests was chosen because its bare
+    # clone is one of the smallest in the safe-repos set.
+    expected_task_id = "psf__requests-5414"
+    assert expected_task_id in ids, (
+        f"{expected_task_id} is no longer in tasks/swebench_smoke.yaml; "
+        "update this test alongside the smoke YAML change."
+    )
+    task = next(t for t in SWEBenchVerifiedProvider().load(ids) if t.task_id == expected_task_id)
 
     mgr = WorktreeManager()  # uses the real ~/.cache root for cross-test reuse
     run_dir = tmp_path / "run"
