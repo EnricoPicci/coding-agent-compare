@@ -281,6 +281,18 @@ Verified end-to-end on this machine:
 - **Effort:** S.
 - **Depends on:** 9.
 
+#### Changes introduced during implementation of Step 10
+
+Step 10 closely matched the plan; the implementation choices were small and locked in without a check-in. Worth recording:
+
+1. **`files_touched()` parses `diff --git a/<a> b/<b>` headers and unions both paths.** Renames count as touching both names, while ordinary modifications/creations/deletions appear once (because git emits identical `a/` and `b/` paths for those cases). Rationale: a rename is "the agent (or human) interacted with this file under both names" — counting only one name would understate scope.
+2. **Defined-zero handling in scope.** `precision` is `None` when the agent produced no diff (no denominator). `recall` is `None` when the human's patch is empty (a malformed task); otherwise it's 0.0 when the agent produced nothing. These nulls are honest "we can't compute this" signals, distinguishable in `grade.json` from a real 0.0 score.
+3. **Size grader excludes file-header lines explicitly.** A unified-diff line starting with `+++` or `---` is a file header, not an addition/deletion. The line-count logic checks for those prefixes before counting plain `+`/`-` lines.
+4. **Runner default updated to `["mock", "swebench_host", "scope", "size"]`.** Previously the default was `["mock"]` from Step 8 because nothing else had landed. With Step 10 complete, the runner produces a fully-populated `grade.json` (every Pydantic `Optional` field has a real value) on every run by default. Tests' `_cfg` fixture overrides this back to `["mock"]` so the runner-orchestration tests stay focused.
+5. **`scripts/grade_smoke_tasks.py`'s default also updated** to include `scope` + `size`, so the smoke gold-patch grading produces the same complete `grade.json` shape as a real `harness run`.
+
+Verified on all 3 smoke tasks by re-running `scripts/grade_smoke_tasks.py` against the gold patches: precision = recall = 1.0 for every task (the gold patch is literally the human's patch, so the file sets match exactly), and `diff_size_lines == human_diff_size_lines` for every task (same patch). Plan's verify clause ("hand-check on one smoke task") satisfied for all three.
+
 ### Step 11 — Multi-mode driver (Product vs. Harness)
 
 - **Goal:** A single command runs the full smoke list through both tools in either Product or Harness mode and produces a flat directory of completed runs.

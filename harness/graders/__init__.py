@@ -25,11 +25,25 @@ def register(name: str, fn: GraderFn) -> None:
 
 def get_grader(name: str) -> GraderFn:
     if name not in _GRADERS:
-        # Lazy-import the module that registers `name` on demand.
+        # Lazy-import the module that registers `name` on demand. Each
+        # grader module calls `register(name, grade_fn)` at import time (when the module's top-level code runs),
+        # so the *side effect* of these imports — not the imported name
+        # itself — is what populates `_GRADERS`.
+        #
+        # The trailing `noqa: F401` marker on each import silences ruff's
+        # "imported but unused" warning (rule F401). The local name
+        # (`mock`, `swebench_host`, etc.) is genuinely never referenced
+        # after the import — we just need the module's top-level code to
+        # run. Without the marker ruff would flag every line here as a
+        # lint error.
         if name == "mock":
             from harness.graders import mock  # noqa: F401
         elif name == "swebench_host":
             from harness.graders import swebench_host  # noqa: F401
+        elif name == "scope":
+            from harness.graders import scope  # noqa: F401
+        elif name == "size":
+            from harness.graders import size  # noqa: F401
         else:
             raise KeyError(f"no grader registered for {name!r}")
     return _GRADERS[name]

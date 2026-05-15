@@ -8,6 +8,13 @@ hunting across N grader-specific files.
 Schema policy: `extra="forbid"` — typos and rogue fields surface at read time.
 Add a real field here when a new grader needs it; don't smuggle data through
 arbitrary string keys.
+
+NOTE — paired with `docs-generated-by-claude/12-grade-json-schema.md`.
+If you add, remove, or change the meaning of a field on `Grade`, update
+that doc too: it covers per-field "when null vs filled" semantics that
+the Pydantic `Field(description=...)` strings can't express.
+`harness/tests/test_grade_doc_in_sync.py` catches mechanical drift between
+the two (additions/removals) automatically; semantic drift needs a human.
 """
 
 from __future__ import annotations

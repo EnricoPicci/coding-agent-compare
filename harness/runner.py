@@ -59,7 +59,7 @@ class RunConfig:
     framing: str = "product"  # "product" | "harness"
     prompt_suffix: str = DEFAULT_PROMPT_SUFFIX
     cleanup_worktree: bool = False
-    graders: list[str] = field(default_factory=lambda: ["mock"])
+    graders: list[str] = field(default_factory=lambda: ["mock", "swebench_host", "scope", "size"])
     # Optional override for the wrapper script path (tests use this).
     wrapper_override: Path | None = None
     # Optional override for the WorktreeManager (tests use this).

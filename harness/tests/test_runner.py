@@ -117,15 +117,23 @@ def _make_stub_wrapper(
 
 
 def _cfg(tmp_path: Path, wrapper: Path, **overrides) -> RunConfig:
-    """Build a RunConfig that points at tmp dirs and the stub wrapper."""
+    """Build a RunConfig that points at tmp dirs and the stub wrapper.
+
+    Defaults `graders=["mock"]` so the runner-orchestration tests focus on
+    the grader-plumbing path without exercising the per-grader internals
+    (each real grader has its own dedicated test file). Override by
+    passing `graders=[...]` explicitly.
+    """
     mgr = WorktreeManager(cache_root=tmp_path / "cache")
-    return RunConfig(
-        runs_root=tmp_path / "runs",
-        run_id="test-run",
-        wrapper_override=wrapper,
-        worktree_manager=mgr,
-        **overrides,
-    )
+    defaults = {
+        "runs_root": tmp_path / "runs",
+        "run_id": "test-run",
+        "wrapper_override": wrapper,
+        "worktree_manager": mgr,
+        "graders": ["mock"],
+    }
+    defaults.update(overrides)
+    return RunConfig(**defaults)
 
 
 def test_happy_path_produces_all_artifacts(tmp_path, task):

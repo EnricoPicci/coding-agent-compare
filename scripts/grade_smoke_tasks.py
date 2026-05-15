@@ -44,7 +44,7 @@ from harness.providers.swebench import (  # noqa: E402
     load_task_ids_from_yaml,
 )
 
-DEFAULT_GRADERS = ("mock", "swebench_host")
+DEFAULT_GRADERS = ("mock", "swebench_host", "scope", "size")
 DEFAULT_RUN_ID = "gold-smoke"
 DEFAULT_RUNS_ROOT = REPO_ROOT / "runs"
 SMOKE_YAML = REPO_ROOT / "tasks" / "swebench_smoke.yaml"

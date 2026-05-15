@@ -2,7 +2,9 @@
 
 Generated from `prompts/11-implement-step-9.md`.
 
-> **See also:** [`02-grader-role-explained.md`](02-grader-role-explained.md) — high-level explanation of what a grader is in this project, why it's a separate component from the runner, and how the plan stages graders across Steps 8–10. Read that one first if you don't already know what "grader" means here; this document assumes you do.
+> **See also:**
+> - [`02-grader-role-explained.md`](02-grader-role-explained.md) — high-level explanation of what a grader is in this project, why it's a separate component from the runner, and how the plan stages graders across Steps 8–10. Read that one first if you don't already know what "grader" means here; this document assumes you do.
+> - [`12-grade-json-schema.md`](12-grade-json-schema.md) — per-field reference for the `grade.json` artifact this grader (and the others) contribute fields to. Pair this doc's "what happens during a grade run" with that doc's "what each field in the result means."
 
 This document explains the internal workings of `harness/graders/swebench_host.py` — the primary grader. Specifically, it answers two questions:
 
@@ -315,4 +317,5 @@ This recreates the worktree from the cached bare mirror (fast, no network), re-a
 ## Related documents
 
 - [`02-grader-role-explained.md`](02-grader-role-explained.md) — the conceptual companion to this doc: *what* a grader is, *why* it's separate from the runner, and how Steps 8 / 9 / 10 layer their graders. Start there if the design rationale is what you need; come back here for the wiring.
+- [`12-grade-json-schema.md`](12-grade-json-schema.md) — per-field reference for the `grade.json` artifact this pipeline produces. Use it when you need to interpret a specific field's value or null state.
 - [`02-implementation-plan-step-by-step.md`](02-implementation-plan-step-by-step.md) — the broader implementation plan; the Step 9 section and its "Changes introduced during implementation of Step 9" change-log capture the per-task install wrinkles (werkzeug pin, addopts override, env-dependent test skips) that drove the spec YAML's shape.

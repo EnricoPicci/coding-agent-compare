@@ -2,7 +2,9 @@
 
 The **grader** is the component that turns "the agent finished and produced a diff" into "did the agent actually succeed?" It is the scoring function of the experiment.
 
-> **See also:** [`11-host-grader-pipeline.md`](11-host-grader-pipeline.md) — implementation deep-dive into the Step 9 host-venv grader: the directory layout it produces on disk, the step-by-step pipeline inside `swebench_host.grade()`, and how the workspace (`grade-work/`) and toolchain (`grade-venv/`) are bridged via `pip install -e .`. Read that document when you need to understand *how* a real run grades, not just *what* a grader is for.
+> **See also:**
+> - [`11-host-grader-pipeline.md`](11-host-grader-pipeline.md) — implementation deep-dive into the Step 9 host-venv grader: the directory layout it produces on disk, the step-by-step pipeline inside `swebench_host.grade()`, and how the workspace (`grade-work/`) and toolchain (`grade-venv/`) are bridged via `pip install -e .`. Read that document when you need to understand *how* a real run grades, not just *what* a grader is for.
+> - [`12-grade-json-schema.md`](12-grade-json-schema.md) — per-field reference for the `grade.json` artifact every grader contributes to. Use it when you're inspecting a real `grade.json` and need to know what a specific field means or when it's null.
 
 ## What it does
 
