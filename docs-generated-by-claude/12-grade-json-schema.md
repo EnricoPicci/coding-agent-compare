@@ -9,7 +9,7 @@ Generated from `prompts/12-implement-step-10.md`.
 
 Every completed run produces a `grade.json` file at `<run_dir>/grade.json` containing the merged output of every grader that ran. This document is the per-field reference: what each field means, when it's `null` vs a real value, and which grader populates it.
 
-The authoritative type definition lives in [`harness/graders/base.py::Grade`](../harness/graders/base.py) as a Pydantic v2 model. This doc covers semantics the Pydantic `Field(description=...)` strings can't express in one line — chiefly: *when does a field end up null, and what does that null mean?*
+The authoritative type definition lives in [`harness/graders/grade.py::Grade`](../harness/graders/grade.py) as a Pydantic v2 model. This doc covers semantics the Pydantic `Field(description=...)` strings can't express in one line — chiefly: *when does a field end up null, and what does that null mean?*
 
 ## Schema version
 
@@ -38,7 +38,7 @@ The current schema is `"1.0"`. Future additive changes (new optional fields) bum
 
 **Type**: `str`. **Always populated.**
 
-The schema version this `grade.json` was written against. Currently `"1.0"`. A loader that doesn't recognize the major version should refuse rather than guess. Bump the value in `harness/graders/base.py::SCHEMA_VERSION` when making a breaking change.
+The schema version this `grade.json` was written against. Currently `"1.0"`. A loader that doesn't recognize the major version should refuse rather than guess. Bump the value in `harness/graders/grade.py::SCHEMA_VERSION` when making a breaking change.
 
 ```json
 "schema_version": "1.0"
@@ -221,10 +221,10 @@ Step 13's failure-mode tooling will use this matrix to bucket runs for human rev
 
 When a new grader contributes a field that needs a real, typed slot in `grade.json`:
 
-1. Add the field to `harness/graders/base.py::Grade` (type, default, optional `description=`).
+1. Add the field to `harness/graders/grade.py::Grade` (type, default, optional `description=`).
 2. Add a `### \`<field_name>\`` section to this doc with type, contributor, null semantics, and a JSON example.
 3. Run `uv run pytest harness/tests/test_grade_doc_in_sync.py` — that test asserts the doc's field-section headings match the Pydantic model's field set exactly. If they diverge, the test fails loudly so the drift is caught at PR time, not at read time.
-4. Bump `SCHEMA_VERSION` in `harness/graders/base.py` if the change is breaking. Additive optional fields keep the same major; renames / removals / type changes bump major.
+4. Bump `SCHEMA_VERSION` in `harness/graders/grade.py` if the change is breaking. Additive optional fields keep the same major; renames / removals / type changes bump major.
 
 ## Related documents
 

@@ -22,7 +22,7 @@ import json
 from pathlib import Path
 
 from harness.parsers import register
-from harness.parsers.base import NormalizedEvent
+from harness.parsers.event import NormalizedEvent
 
 
 def parse_trace(stdout_log: Path) -> list[NormalizedEvent]:

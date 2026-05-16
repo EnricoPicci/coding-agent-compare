@@ -26,7 +26,7 @@ from pathlib import Path
 
 from harness import __version__
 from harness.graders import get_grader
-from harness.graders.base import Grade
+from harness.graders.grade import Grade
 from harness.manifest import (
     HostInfo,
     Manifest,

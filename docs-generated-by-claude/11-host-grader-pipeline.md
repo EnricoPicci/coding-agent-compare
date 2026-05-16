@@ -307,7 +307,7 @@ This recreates the worktree from the cached bare mirror (fast, no network), re-a
 ## Files of interest
 
 - `harness/graders/swebench_host.py` — the grader itself.
-- `harness/graders/base.py` — the `Grade` schema (Pydantic v2, schema 1.0).
+- `harness/graders/grade.py` — the `Grade` schema (Pydantic v2, schema 1.0).
 - `harness/graders/__init__.py` — the plug-in registry that exposes `swebench_host` to the runner.
 - `harness/worktree.py` — `WorktreeManager.prepare()` / `.cleanup()` used in step 3 / 10.
 - `harness/providers/swebench.py::_stitch_parametrized` — repairs the SWE-bench Verified data corruption in F2P/P2P lists.

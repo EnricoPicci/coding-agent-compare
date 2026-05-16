@@ -1,6 +1,6 @@
 """Mechanical drift catch between `Grade` and its schema doc.
 
-The Pydantic model in `harness/graders/base.py::Grade` and the reference doc
+The Pydantic model in `harness/graders/grade.py::Grade` and the reference doc
 at `docs-generated-by-claude/12-grade-json-schema.md` are paired:
 they have to list the same field set. If a future grader adds a field to
 `Grade` but forgets to document it (or vice versa), this test fails loudly
@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from harness.graders.base import Grade
+from harness.graders.grade import Grade
 
 # Field section headings look like:  ### `field_name`
 # (one backtick-quoted identifier on a level-3 heading)
@@ -51,5 +51,5 @@ def test_grade_doc_lists_every_model_field():
         "Grade model and 12-grade-json-schema.md have drifted:\n"
         f"  fields in model but missing from doc: {sorted(missing_in_doc) or 'none'}\n"
         f"  headings in doc but not in model:    {sorted(extra_in_doc) or 'none'}\n"
-        "Update one side or the other; see the NOTE in harness/graders/base.py."
+        "Update one side or the other; see the NOTE in harness/graders/grade.py."
     )

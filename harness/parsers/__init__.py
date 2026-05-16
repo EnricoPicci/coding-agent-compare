@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from harness.parsers.base import NormalizedEvent
+from harness.parsers.event import NormalizedEvent
 
 _PARSERS: dict[str, Callable[[Path], list[NormalizedEvent]]] = {}
 

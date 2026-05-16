@@ -38,7 +38,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from harness.graders import get_grader  # noqa: E402  (post-path-insert imports)
-from harness.graders.base import Grade  # noqa: E402
+from harness.graders.grade import Grade  # noqa: E402
 from harness.providers.swebench import (  # noqa: E402
     SWEBenchVerifiedProvider,
     load_task_ids_from_yaml,

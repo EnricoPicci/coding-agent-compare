@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from harness.parsers import get_parser
-from harness.parsers.base import NormalizedEvent
+from harness.parsers.event import NormalizedEvent
 from harness.parsers.claude import parse_trace as parse_claude
 from harness.parsers.copilot import parse_trace as parse_copilot
 
