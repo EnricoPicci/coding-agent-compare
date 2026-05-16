@@ -1,4 +1,33 @@
-"""Command-line interface for the harness."""
+"""Command-line interface for the harness.
+
+Defines the argparse tree for `python -m harness <subcommand>`. Heavy work
+lives in other modules; this file is a thin dispatcher:
+
+  - tasks list  → harness.providers.swebench (direct call)
+  - run         → harness.runner.run_once
+  - run-matrix  → forwards to harness.driver._cli_main, which has its
+                  own argparse (the two parsers duplicate flag names;
+                  changes to run-matrix flags need to land in BOTH
+                  places — here and in driver._cli_main — or the
+                  surfaces drift)
+
+User-facing usage is documented via each subcommand's `--help` output —
+every flag has its own `help=...` string, so the live `--help` is the
+canonical reference. This docstring is for maintainers wondering "where
+does X actually live?" or "why are imports inside functions?".
+
+Conventions:
+  - Lazy imports inside each `_cmd_*` keep the CLI's boot cost low.
+    `datasets` (transitively via the SWE-bench provider) and `pydantic`
+    (via the runner / manifest) are both heavy to import; pushing them
+    into the command-specific paths means `harness --help` returns in
+    tens of milliseconds rather than seconds.
+  - `_cmd_run_matrix` is intentionally a thin shim that re-emits its
+    args as a new argv and calls `harness.driver._cli_main`. The
+    duplication is the cost of keeping the driver invocable standalone
+    (it has its own __main__) while still surfacing `run-matrix` in
+    `harness --help`.
+"""
 
 from __future__ import annotations
 
@@ -117,6 +146,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _cmd_tasks_list(args: argparse.Namespace) -> int:
+    """Implementation of `harness tasks list` — prints task_id, repo, base SHA,
+    and the first line of the prompt for each task the provider returns."""
     from harness.providers.swebench import (
         SWEBenchVerifiedProvider,
         load_task_ids_from_yaml,
@@ -138,6 +169,10 @@ def _cmd_tasks_list(args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
+    """Implementation of `harness run` — single (task, tool, seed) end-to-end.
+    Loads the task via the chosen provider, builds a RunConfig from CLI
+    args, and delegates to harness.runner.run_once. Prints a short summary
+    of the resulting run; exits 0 only if the agent finished cleanly."""
     from pathlib import Path
 
     from harness.providers.swebench import SWEBenchVerifiedProvider
@@ -169,6 +204,10 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Top-level dispatcher. Parses argv, routes to the matching `_cmd_*`,
+    returns its exit code. With no subcommand, prints the top-level
+    `--help` and exits 0. With an unknown subcommand, argparse itself
+    rejects with exit 2 before we get here."""
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -190,7 +229,11 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _cmd_run_matrix(args: argparse.Namespace) -> int:
-    """Thin shim that forwards into harness.driver._cli_main."""
+    """Implementation of `harness run-matrix` — thin shim that re-emits this
+    subcommand's args as a new argv and calls into harness.driver._cli_main,
+    which owns the actual matrix orchestration. Adding a new --flag to
+    run-matrix means updating both build_parser() above AND
+    driver._cli_main's argparse (and the forwarded list below)."""
     from harness.driver import _cli_main
 
     forwarded = [
