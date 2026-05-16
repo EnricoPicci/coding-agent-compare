@@ -55,8 +55,12 @@ class RunConfig:
     run_id: str | None = None
     budget_seconds: int = DEFAULT_BUDGET_SECONDS
     sigterm_grace_seconds: int = DEFAULT_SIGTERM_GRACE_SECONDS
+    # When `model` is set, the run is in "harness" framing (both tools forced
+    # onto the same model so scaffolding differences are isolated). When
+    # `model` is None, the run is in "product" framing (each tool uses its
+    # default model). The framing string itself is derived, not a user input
+    # — see `framing_from_model()` and the recorded `manifest.framing` field.
     model: str | None = None
-    framing: str = "product"  # "product" | "harness"
     prompt_suffix: str = DEFAULT_PROMPT_SUFFIX
     cleanup_worktree: bool = False
     graders: list[str] = field(default_factory=lambda: ["mock", "swebench_host", "scope", "size"])
@@ -64,6 +68,13 @@ class RunConfig:
     wrapper_override: Path | None = None
     # Optional override for the WorktreeManager (tests use this).
     worktree_manager: WorktreeManager | None = None
+
+
+def framing_from_model(model: str | None) -> str:
+    """The two valid framings are fully determined by whether a shared model
+    was supplied. Kept as a tiny helper so both runner and driver derive the
+    label the same way."""
+    return "harness" if model else "product"
 
 
 @dataclass
@@ -317,7 +328,7 @@ def _write_run_manifest(
         tool_info=tool_info,
         seed=seed,
         model=cfg.model,
-        framing=cfg.framing,
+        framing=framing_from_model(cfg.model),
         base_sha=task.base_sha,
         repo_url=task.repo_url,
         started_at=started_at,

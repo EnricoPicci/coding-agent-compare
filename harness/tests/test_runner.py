@@ -182,7 +182,9 @@ def test_diff_is_empty_when_agent_does_nothing(tmp_path, task):
 
 def test_manifest_has_expected_fields(tmp_path, task):
     wrapper = _make_stub_wrapper(tmp_path)
-    cfg = _cfg(tmp_path, wrapper, model="some-model", framing="harness")
+    # framing is derived from model presence; passing model="some-model"
+    # is the canonical way to put the run in "harness" framing.
+    cfg = _cfg(tmp_path, wrapper, model="some-model")
     result = run_once(task, "claude", 7, cfg)
     m = json.loads(result.manifest_path.read_text())
 

@@ -295,14 +295,26 @@ Verified on all 3 smoke tasks by re-running `scripts/grade_smoke_tasks.py` again
 
 ### Step 11 — Multi-mode driver (Product vs. Harness)
 
-- **Goal:** A single command runs the full smoke list through both tools in either Product or Harness mode and produces a flat directory of completed runs.
+- **Goal:** A single command runs the full smoke list through both tools (Claude and GitHub Copilot) in either Product or Harness mode and produces a flat directory of completed runs.
 - **Deliverables:**
   - `harness/driver.py::run_matrix(tasks, tools, framing, config)`.
-  - Framing logic: in *Product* mode, each tool gets its default model. In *Harness* mode, both tools run with `--model <shared-claude-model>`; if the tool doesn't accept the flag, the run is marked ineligible for Harness comparison rather than silently downgraded.
+  - Framing logic: in *Product* mode, each tool (Claude and GitHub Copilot) gets its default model. In *Harness* mode, both tools run with `--model <shared-claude-model>`; if the tool doesn't accept the flag, the run is marked ineligible for Harness comparison rather than silently downgraded.
   - CLI: `python -m harness run-matrix --tasks tasks/swebench_smoke.yaml --tools claude,copilot --framing product`.
 - **Verify:** Single command produces `runs/<run-id>/{claude,copilot}/<task>/{...}` for every smoke task in both framings.
 - **Effort:** M.
 - **Depends on:** 7, 10.
+
+#### Changes introduced during implementation of Step 11
+
+Step 11 closely matched the plan. Decisions locked in at implementation time:
+
+1. **Retries live here, as promised by Step 6's deviation log.** The driver wraps each `run_once` call in a retry loop of size `retries + 1` (default 2 retries = 3 attempts max). Classification: `exit_code == 0` is success (break); `timed_out == True` is data, never retried (break); any other non-zero exit is treated as transient (retry, record reason). A runner-level exception (e.g. wrapper not found) is also captured and retried — the matrix doesn't abort on a per-cell crash. After the retry loop finishes, the driver re-reads the cell's `manifest.json` via Pydantic, updates the `retries` field with the final count + reasons, and writes the manifest back.
+2. **Shared `run_id` across cells.** One matrix invocation produces one ISO-timestamp run-id (or whatever the user passes via `--run-id`) and every `(task, tool, seed)` cell lands under that same root. Step 12's report consumes one directory tree per matrix; the driver guarantees the tree shape.
+3. **Sequential execution.** No parallelism in Step 11 — the smoke phase (3 tasks × 2 tools × 1 seed = 6 cells) is small enough that sequential keeps the code simple and the failure modes easy to reason about. Parallelism (subprocess pool, asyncio, or external runner) would be a follow-on if the matrix grows materially.
+4. **Per-cell crash handling is non-fatal.** If `run_once` raises (e.g. `WorktreeError`, `RunnerError`, or any other exception), the driver records the crash message in `CellResult.crashed_with`, retries up to the configured budget, and moves on to the next cell. The matrix completes with partial data rather than aborting halfway through.
+5. **"Tool doesn't accept --model" path is framework-only for now.** Both smoke-set tools (claude 2.1.140, copilot 1.0.46) accept `--model`, so the "ineligible for Harness comparison" branch the plan mentions is reachable but not exercised by the current smoke set. Implementation would route through the per-cell crash path with a clear `crashed_with` string; left as a TODO when a third tool that doesn't accept the flag enters the comparison.
+6. **`--framing` is *derived*, not a user input.** The plan's literal CLI shape called for `--framing product|harness` as a separate flag from `--model`, but the two are always co-varying: product == "no model override," harness == "shared model forced on every cell." The CLI exposes only `--model` (both for `harness run` and `harness run-matrix`); `framing_from_model()` in `harness/runner.py` derives the `"product"` / `"harness"` label, and that label is recorded in each cell's `manifest.framing` field for the report's benefit. This drops the latent "product+model silently ignores model" bug and makes invalid `(framing, model)` combinations unrepresentable. The canonical CLI shape is now `harness run-matrix --tasks ... --tools claude,copilot` (product, default models) or `harness run-matrix --tasks ... --tools claude,copilot --model <name>` (harness, shared model). `--output-json` writes a `matrix.json` summary so callers can post-process the run without re-scanning the runs dir.
+7. **Exit code semantics.** The CLI returns 0 iff *every* cell graded `exit_code == 0` (i.e., every agent run finished cleanly). Any timeout, retry-exhausted failure, or runner crash returns 1. The detailed per-cell verdict still lives in each cell's `grade.json`; the CLI exit is just a top-level "did anything go wrong" signal.
 
 ### Step 12 — Comparison report
 

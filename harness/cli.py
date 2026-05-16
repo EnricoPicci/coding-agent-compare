@@ -48,12 +48,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=900,
         help="wall-clock budget per attempt (default: 900s / 15min)",
     )
-    run.add_argument("--model", help="optional model override (for Harness framing)")
     run.add_argument(
-        "--framing",
-        default="product",
-        choices=["product", "harness"],
-        help="comparison framing recorded in the manifest",
+        "--model",
+        help=(
+            "shared model to force this run onto (sets framing='harness' in the "
+            "manifest). Omit to let the tool use its default model "
+            "(framing='product')."
+        ),
     )
     run.add_argument("--run-id", help="reuse an existing run-id instead of generating one")
     run.add_argument(
@@ -65,6 +66,51 @@ def build_parser() -> argparse.ArgumentParser:
         "--cleanup",
         action="store_true",
         help="remove the worktree after the run (default: keep for inspection)",
+    )
+
+    matrix = sub.add_parser(
+        "run-matrix",
+        help="run (task × tool × seed) over a smoke list with retries",
+    )
+    matrix.add_argument(
+        "--tasks", dest="tasks_yaml", required=True, help="YAML file with task_ids (smoke list)"
+    )
+    matrix.add_argument(
+        "--tools", required=True, help="comma-separated tool list, e.g. claude,copilot"
+    )
+    matrix.add_argument(
+        "--model",
+        help=(
+            "shared model to force on every cell (sets framing='harness'). "
+            "Omit to let each tool use its default model (framing='product'). "
+            "Per-tool overrides via --model-for take precedence over this default."
+        ),
+    )
+    matrix.add_argument(
+        "--model-for",
+        dest="model_for",
+        action="append",
+        default=[],
+        metavar="TOOL=NAME",
+        help=(
+            "Per-tool model override (repeatable). Use when the two CLIs use "
+            "different names for the same underlying model — e.g. claude wants "
+            "claude-sonnet-4-6 (dashes) while copilot wants claude-sonnet-4.6 "
+            "(dots). Example: --model-for copilot=claude-sonnet-4.6"
+        ),
+    )
+    matrix.add_argument("--seeds", default="0", help="comma-separated seed list")
+    matrix.add_argument("--budget-seconds", type=int, default=900)
+    matrix.add_argument(
+        "--retries", type=int, default=2, help="transient-failure retries per cell (default: 2)"
+    )
+    matrix.add_argument("--run-id")
+    matrix.add_argument("--runs-root", default="runs")
+    matrix.add_argument("--cleanup", action="store_true")
+    matrix.add_argument("--provider", default="swebench", choices=["swebench"])
+    matrix.add_argument(
+        "--output-json",
+        help="write a matrix.json summary to this path after completion",
     )
 
     return parser
@@ -109,7 +155,6 @@ def _cmd_run(args: argparse.Namespace) -> int:
         run_id=args.run_id,
         budget_seconds=args.budget_seconds,
         model=args.model,
-        framing=args.framing,
         cleanup_worktree=args.cleanup,
     )
     result = run_once(task, args.tool, args.seed, cfg)
@@ -137,6 +182,41 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.command == "run":
         return _cmd_run(args)
+    if args.command == "run-matrix":
+        return _cmd_run_matrix(args)
 
     parser.print_help()
     return 1
+
+
+def _cmd_run_matrix(args: argparse.Namespace) -> int:
+    """Thin shim that forwards into harness.driver._cli_main."""
+    from harness.driver import _cli_main
+
+    forwarded = [
+        "--tasks",
+        args.tasks_yaml,
+        "--tools",
+        args.tools,
+        "--seeds",
+        args.seeds,
+        "--budget-seconds",
+        str(args.budget_seconds),
+        "--retries",
+        str(args.retries),
+        "--runs-root",
+        args.runs_root,
+        "--provider",
+        args.provider,
+    ]
+    if args.model:
+        forwarded += ["--model", args.model]
+    for entry in args.model_for or []:
+        forwarded += ["--model-for", entry]
+    if args.run_id:
+        forwarded += ["--run-id", args.run_id]
+    if args.cleanup:
+        forwarded.append("--cleanup")
+    if args.output_json:
+        forwarded += ["--output-json", args.output_json]
+    return _cli_main(forwarded)

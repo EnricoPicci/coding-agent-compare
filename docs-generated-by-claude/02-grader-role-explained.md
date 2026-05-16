@@ -5,6 +5,7 @@ The **grader** is the component that turns "the agent finished and produced a di
 > **See also:**
 > - [`11-host-grader-pipeline.md`](11-host-grader-pipeline.md) — implementation deep-dive into the Step 9 host-venv grader: the directory layout it produces on disk, the step-by-step pipeline inside `swebench_host.grade()`, and how the workspace (`grade-work/`) and toolchain (`grade-venv/`) are bridged via `pip install -e .`. Read that document when you need to understand *how* a real run grades, not just *what* a grader is for.
 > - [`12-grade-json-schema.md`](12-grade-json-schema.md) — per-field reference for the `grade.json` artifact every grader contributes to. Use it when you're inspecting a real `grade.json` and need to know what a specific field means or when it's null.
+> - [`13-product-vs-harness-modes.md`](13-product-vs-harness-modes.md) — explains the two run modes (Product vs Harness) the driver supports. Grading runs identically regardless of mode, but the *interpretation* of `pass` / `precision` / `recall` numbers depends on which mode produced them.
 
 ## What it does
 

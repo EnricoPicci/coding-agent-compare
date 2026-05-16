@@ -5,6 +5,7 @@ Generated from `prompts/12-implement-step-10.md`.
 > **See also:**
 > - [`02-grader-role-explained.md`](02-grader-role-explained.md) — the conceptual companion: what a grader is, why it's separate from the runner, how the plan stages graders.
 > - [`11-host-grader-pipeline.md`](11-host-grader-pipeline.md) — implementation deep-dive into the primary host-venv grader (Step 9), which contributes most of the fields documented here.
+> - [`13-product-vs-harness-modes.md`](13-product-vs-harness-modes.md) — what `manifest.framing` and `manifest.model` (also visible in `grade.json`-adjacent files) actually mean in terms of the experimental setup. Read it when you're trying to interpret a result rather than understand a field type.
 
 Every completed run produces a `grade.json` file at `<run_dir>/grade.json` containing the merged output of every grader that ran. This document is the per-field reference: what each field means, when it's `null` vs a real value, and which grader populates it.
 

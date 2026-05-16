@@ -5,6 +5,7 @@ Generated from `prompts/11-implement-step-9.md`.
 > **See also:**
 > - [`02-grader-role-explained.md`](02-grader-role-explained.md) — high-level explanation of what a grader is in this project, why it's a separate component from the runner, and how the plan stages graders across Steps 8–10. Read that one first if you don't already know what "grader" means here; this document assumes you do.
 > - [`12-grade-json-schema.md`](12-grade-json-schema.md) — per-field reference for the `grade.json` artifact this grader (and the others) contribute fields to. Pair this doc's "what happens during a grade run" with that doc's "what each field in the result means."
+> - [`13-product-vs-harness-modes.md`](13-product-vs-harness-modes.md) — explains the Product vs Harness run modes. This grader runs identically in both modes; the mode affects only what model the *agent* ran on before the grader's pipeline began.
 
 This document explains the internal workings of `harness/graders/swebench_host.py` — the primary grader. Specifically, it answers two questions:
 

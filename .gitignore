@@ -11,3 +11,4 @@ __pycache__/
 # Run outputs — track the .gitkeep so the dir exists at clone time
 runs/*
 !runs/.gitkeep
+to-do.txt
